@@ -1,0 +1,35 @@
+---
+- name: Check LDAP Realm status
+  ansible.builtin.shell: |
+    set -o pipefail
+    # Check if realm exists in json list
+    if ! pveum realm list --output-format json | grep -q '"realm":"{{ proxmox_ldap_realm }}"'; then
+        echo "needs_registration"
+        exit 0
+    fi
+    # Check if config needs reconfiguration
+    if [ -f "/etc/pve/domains.cfg" ]; then
+        BLOCK=$(sed -n "/^ldap: {{ proxmox_ldap_realm }}/,/^\s*$/p" "/etc/pve/domains.cfg")
+        if ! echo "$BLOCK" | grep -F -q "group_filter (cn={{ proxmox_ldap_ipa_group }})" || \
+           ! echo "$BLOCK" | grep -q "group_classes" || \
+           ! echo "$BLOCK" | grep -q "server1 {{ proxmox_ldap_server1 }}" || \
+           {% if proxmox_ldap_server2 is defined and proxmox_ldap_server2 %}! echo "$BLOCK" | grep -q "server2 {{ proxmox_ldap_server2 }}" || {% endif %}\
+           {% if proxmox_ldap_default | default(true) | bool %}! echo "$BLOCK" | grep -E -q '^[[:space:]]*default[[:space:]]+1' || {% endif %}\
+           false; then
+            echo "needs_reconfiguration"
+            exit 0
+        fi
+    fi
+    echo "ok"
+  args:
+    executable: /bin/bash
+  register: realm_check_raw
+  changed_when: false
+  tags: [proxmox_ldap, check]
+
+- name: Set realm status fact
+  ansible.builtin.set_fact:
+    proxmox_ldap_realm_status: "{{ realm_check_raw.stdout | trim }}"
+  tags: [proxmox_ldap, check]
+
+

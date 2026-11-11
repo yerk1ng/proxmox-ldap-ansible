@@ -1,0 +1,23 @@
+---
+# Example 1: Full deployment across both Proxmox VE and Proxmox Backup Server (PBS)
+- name: Configure LDAP Authentication for Proxmox Infrastructure
+  hosts: proxmox
+  become: true
+  roles:
+    - role: proxmox_ldap
+      vars:
+        proxmox_ldap_realm: "freeipa"
+        proxmox_ldap_comment: "Corporate FreeIPA Realm"
+        proxmox_ldap_server1: "ipa1.example.com"
+        proxmox_ldap_server2: "ipa2.example.com"
+        proxmox_ldap_port: 636
+        proxmox_ldap_mode: "ldaps"
+        proxmox_ldap_base_dn: "cn=accounts,dc=example,dc=com"
+        proxmox_ldap_bind_dn: "uid=pve_sa,cn=users,cn=accounts,dc=example,dc=com"
+        proxmox_ldap_bind_password: "SecretBindPasswordHere"
+        proxmox_ldap_user_attr: "uid"
+        proxmox_ldap_ipa_group: "pve_admins"
+        proxmox_ldap_admin_role: "Administrator"
+        proxmox_ldap_admin_path: "/"
+        proxmox_ldap_sync_schedule: "21:00"
+        proxmox_ldap_default: true

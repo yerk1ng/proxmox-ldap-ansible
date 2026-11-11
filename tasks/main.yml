@@ -1,0 +1,22 @@
+---
+- name: Gather OS specific vars
+  block:
+    - name: Include OS-specific variables
+      include_vars: "{{ item }}"
+      with_first_found:
+        - "{{ ansible_distribution | lower }}-{{ ansible_distribution_major_version | lower }}.yml"
+        - "{{ ansible_distribution | lower }}.yml"
+        - "{{ ansible_os_family | lower }}.yml"
+  tags: [proxmox_ldap, vars]
+
+- name: Proxmox Backup Server LDAP Configuration
+  ansible.builtin.include_tasks: pbs.yml
+  when: "'proxmox_backup' in group_names"
+  tags: [proxmox_ldap]
+
+- name: Proxmox VE LDAP Configuration (Cluster Gateway)
+  ansible.builtin.include_tasks: pve.yml
+  when:
+    - "'proxmox_ve' in group_names"
+    - inventory_hostname == (ansible_play_hosts | intersect(groups[group_names | reject('in', ['all', 'proxmox', 'proxmox_ve']) | first | default('proxmox_ve')]) | first)
+  tags: [proxmox_ldap]

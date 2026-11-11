@@ -1,0 +1,22 @@
+- name: Check ACL status for synced LDAP admin group
+  ansible.builtin.shell: >
+    pveum acl list | grep -qE "│ {{ proxmox_ldap_admin_path }} +│ {{ proxmox_ldap_admin_role }} +│ group +│ {{ proxmox_ldap_ipa_group }}-{{ proxmox_ldap_realm }} +│ 1 +│" && echo "ok" || echo "missing"
+  args:
+    executable: /bin/bash
+  register: acl_check_raw
+  changed_when: false
+
+- name: Set ACL status fact
+  ansible.builtin.set_fact:
+    proxmox_ldap_acl_status: "{{ acl_check_raw.stdout | trim }}"
+
+- name: Configure ACL for synced LDAP admin group
+  ansible.builtin.command: "pveum acl modify {{ proxmox_ldap_admin_path }} --group {{ proxmox_ldap_ipa_group }}-{{ proxmox_ldap_realm }} --role {{ proxmox_ldap_admin_role }}"
+  when: proxmox_ldap_acl_status == "missing"
+
+- name: Create automatic Realm Sync Job
+  ansible.builtin.shell: |
+    grep -q "realm-sync: realmsync-{{ proxmox_ldap_realm }}" /etc/pve/jobs.cfg 2>/dev/null || printf "\nrealm-sync: realmsync-%s\n\trealm %s\n\tschedule %s\n\tscope %s\n\tenable-new %s\n\tenabled 1\n\tremove-vanished %s\n" "{{ proxmox_ldap_realm }}" "{{ proxmox_ldap_realm }}" "{{ proxmox_ldap_sync_schedule }}" "{{ proxmox_ldap_sync_scope }}" "{{ proxmox_ldap_sync_enable_new }}" "{{ proxmox_ldap_sync_remove_vanished }}" >> /etc/pve/jobs.cfg
+  args:
+    executable: /bin/bash
+  changed_when: false

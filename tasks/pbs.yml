@@ -1,0 +1,9 @@
+---
+- name: Configure Proxmox Backup Server LDAP
+  ansible.builtin.shell: |
+    {{ lookup('template', 'pbs_ldap_config.sh.j2') }}
+  args:
+    executable: /bin/bash
+  register: pbs_setup_result
+  changed_when: "'Applying' in pbs_setup_result.stdout or 'Updating' in pbs_setup_result.stdout or 'Creating' in pbs_setup_result.stdout"
+  tags: [proxmox_ldap]

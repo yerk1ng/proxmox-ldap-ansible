@@ -1,0 +1,43 @@
+---
+proxmox_ldap_realm: freeipa
+proxmox_ldap_comment: "LDAP / FreeIPA Realm for Proxmox Administrators"
+proxmox_ldap_default: true
+proxmox_ldap_server1: ldap1.example.com
+proxmox_ldap_server2: ldap2.example.com
+proxmox_ldap_port: 636
+proxmox_ldap_mode: ldaps
+proxmox_ldap_base_dn: "cn=accounts,dc=example,dc=com"
+proxmox_ldap_bind_dn: "uid=pve_sa,cn=users,cn=accounts,dc=example,dc=com"
+proxmox_ldap_bind_password: ""
+proxmox_ldap_user_attr: uid
+proxmox_ldap_filter: "(memberOf=cn={{ proxmox_ldap_ipa_group }},cn=groups,cn=accounts,dc=example,dc=com)"
+proxmox_ldap_sync_attributes: "email=mail,firstname=givenName,lastname=sn"
+proxmox_ldap_group_filter: "(cn={{ proxmox_ldap_ipa_group }})"
+proxmox_ldap_group_classes: "ipausergroup,groupOfNames"
+proxmox_ldap_sync_defaults_options: "scope=both,remove-vanished=acl;entry;properties"
+
+# Realm Sync Job Variables (PVE /etc/pve/jobs.cfg)
+# -----------------------------------------------------------------------------
+# Valid Proxmox schedule formats (Calendar Event syntax):
+#   "*/30"                          - Every 30 minutes
+#   "0/2:00"                        - Every two hours
+#   "21:00"                         - Every day 21:00
+#   "02:30, 22:30"                  - Every day 02:30 and 22:30
+#   "Mon..Fri 00:00"                - Monday to Friday 00:00
+#   "Mon..Fri hourly"               - Monday to Friday hourly
+#   "Mon..Fri 07:00-18:45/15"       - Monday to Friday 07:00 to 18:45: Every 15 mins
+#   "Sun 01:00"                     - Sunday 01:00
+#   "*-*-01 00:00"                  - Every first day of the Month 00:00
+#   "Sat *-*-1..7 15:00"            - First Saturday each month 15:00
+#   "*-01-01 00:00"                 - First day of the year 00:00
+# -----------------------------------------------------------------------------
+proxmox_ldap_sync_schedule: "21:00"
+proxmox_ldap_sync_scope: "both"
+proxmox_ldap_sync_enable_new: 1
+proxmox_ldap_sync_remove_vanished: "acl;entry;properties"
+
+proxmox_ldap_manage_acl: true
+proxmox_ldap_ipa_group: pve_admins
+proxmox_ldap_admin_role: "Administrator"
+proxmox_ldap_admin_path: "/"
+

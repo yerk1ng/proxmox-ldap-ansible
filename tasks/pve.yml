@@ -1,0 +1,13 @@
+---
+- name: Perform existence checks
+  ansible.builtin.import_tasks: check.yml
+  tags: [proxmox_ldap]
+
+- name: Register LDAP realm if needed
+  ansible.builtin.import_tasks: register.yml
+  when: proxmox_ldap_realm_status | default('ok') != 'ok'
+  tags: [proxmox_ldap]
+
+- name: Configure Groups and ACLs
+  ansible.builtin.import_tasks: configure.yml
+  tags: [proxmox_ldap]

@@ -1,0 +1,15 @@
+[proxmox:children]
+proxmox_ve
+proxmox_backup
+
+[proxmox_ve]
+# In a PVE cluster, the role automatically executes cluster-wide changes 
+# only on the first host (Cluster Gateway) to avoid pmxcfs locking contention.
+pve-node-01.example.com
+pve-node-02.example.com
+pve-node-03.example.com
+
+[proxmox_backup]
+# Proxmox Backup Server (PBS) standalone or cluster instances
+pbs-node-01.example.com
+

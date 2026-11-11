@@ -1,0 +1,72 @@
+#!/bin/bash
+# {{ ansible_managed }}
+
+REALM="{{ proxmox_ldap_realm }}"
+DESIRED_SERVER="{{ proxmox_ldap_server1 }}"
+DESIRED_SERVER2="{{ proxmox_ldap_server2 | default('') }}"
+DESIRED_SYNC_ATTRS="{{ proxmox_ldap_sync_attributes }}"
+DESIRED_FILTER='{{ proxmox_ldap_filter }}'
+DESIRED_GROUP_FILTER='{{ proxmox_ldap_group_filter }}'
+DESIRED_GROUP_CLASSES='{{ proxmox_ldap_group_classes }}'
+DESIRED_DEFAULT="{{ 1 if (proxmox_ldap_default | default(true) | bool) else 0 }}"
+
+CONFIG_FILE="/etc/pve/domains.cfg"
+
+if [ -f "$CONFIG_FILE" ] && grep -q "^ldap: $REALM" "$CONFIG_FILE"; then
+    OPERATION="modify"
+    TYPE_ARG=""
+
+    BLOCK=$(sed -n "/^ldap: $REALM/,/^\s*$/p" "$CONFIG_FILE")
+    CURRENT_SERVER=$(echo "$BLOCK" | grep "server1" | awk '{print $2}')
+    CURRENT_SERVER2=$(echo "$BLOCK" | grep "server2" | awk '{print $2}')
+    CURRENT_SYNC=$(echo "$BLOCK" | grep "sync_attributes" | awk '{print $2}')
+    CURRENT_FILTER=$(echo "$BLOCK" | grep -E '^[[:space:]]*filter[[:space:]]' | sed 's/^[[:space:]]*filter[[:space:]]*//')
+    CURRENT_GROUP_FILTER=$(echo "$BLOCK" | grep "group_filter" | sed 's/^[[:space:]]*group_filter[[:space:]]*//')
+    CURRENT_GROUP_CLASSES=$(echo "$BLOCK" | grep "group_classes" | sed 's/^[[:space:]]*group_classes[[:space:]]*//')
+    CURRENT_DEFAULT=$(echo "$BLOCK" | grep -E '^[[:space:]]*default[[:space:]]' | awk '{print $2}')
+    CURRENT_DEFAULT=${CURRENT_DEFAULT:-0}
+
+    if [[ "$CURRENT_SERVER" == "$DESIRED_SERVER" ]] && \
+       [[ "$CURRENT_SERVER2" == "$DESIRED_SERVER2" ]] && \
+       [[ "$CURRENT_SYNC" == "$DESIRED_SYNC_ATTRS" ]] && \
+       [[ "$CURRENT_FILTER" == "$DESIRED_FILTER" ]] && \
+       [[ "$CURRENT_GROUP_FILTER" == "$DESIRED_GROUP_FILTER" ]] && \
+       [[ "$CURRENT_GROUP_CLASSES" == "$DESIRED_GROUP_CLASSES" ]] && \
+       [[ "$CURRENT_DEFAULT" == "$DESIRED_DEFAULT" ]]; then
+        echo "Realm $REALM is already up-to-date and clean. Nothing to do."
+        exit 0
+    fi
+
+    EXTRA_ARGS=""
+else
+    OPERATION="add"
+    TYPE_ARG="--type ldap"
+fi
+
+echo "Applying $OPERATION for realm $REALM..."
+
+pveum realm $OPERATION $REALM $TYPE_ARG $EXTRA_ARGS \
+    --server1 {{ proxmox_ldap_server1 }} \
+    {% if proxmox_ldap_server2 is defined and proxmox_ldap_server2 %}--server2 {{ proxmox_ldap_server2 }}{% endif %} \
+    --default {{ 1 if (proxmox_ldap_default | default(true) | bool) else 0 }} \
+    --port {{ proxmox_ldap_port }} \
+    --mode {{ proxmox_ldap_mode }} \
+    --base_dn "{{ proxmox_ldap_base_dn }}" \
+    --bind_dn "{{ proxmox_ldap_bind_dn }}" \
+    --password "{{ proxmox_ldap_bind_password }}" \
+    --user_attr {{ proxmox_ldap_user_attr }} \
+    --filter "{{ proxmox_ldap_filter }}" \
+    --sync_attributes "{{ proxmox_ldap_sync_attributes }}" \
+    --group_filter "{{ proxmox_ldap_group_filter }}" \
+    --group_classes "{{ proxmox_ldap_group_classes }}" \
+    --sync-defaults-options "{{ proxmox_ldap_sync_defaults_options }}" \
+    --comment "{{ proxmox_ldap_comment }}"
+
+if [ $? -eq 0 ]; then
+    echo "Realm $REALM configured successfully. Starting sync..."
+    pveum realm sync $REALM --scope both --remove-vanished entry
+    echo "SYNC_COMPLETE"
+else
+    echo "Failed to configure realm $REALM."
+    exit 1
+fi

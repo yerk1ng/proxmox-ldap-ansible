@@ -1,0 +1,3 @@
+---
+proxmox_ldap_os_version: "debian-12"
+proxmox_ldap_pve_version: "8.x"

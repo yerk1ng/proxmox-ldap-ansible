@@ -1,0 +1,62 @@
+#!/bin/bash
+# {{ ansible_managed }}
+
+REALM="{{ proxmox_ldap_realm }}"
+DESIRED_SERVER="{{ proxmox_ldap_server1 }}"
+DESIRED_SERVER2="{{ proxmox_ldap_server2 | default('') }}"
+DESIRED_SYNC_ATTRS="{{ proxmox_ldap_sync_attributes }}"
+DESIRED_FILTER='{{ proxmox_ldap_filter }}'
+DESIRED_DEFAULT="{{ 'true' if (proxmox_ldap_default | default(true) | bool) else 'false' }}"
+
+CONFIG_FILE="/etc/proxmox-backup/domains.cfg"
+
+if [ -f "$CONFIG_FILE" ] && grep -q "^ldap: $REALM" "$CONFIG_FILE"; then
+    BLOCK=$(sed -n "/^ldap: $REALM/,/^\s*$/p" "$CONFIG_FILE")
+    CURRENT_SERVER=$(echo "$BLOCK" | grep "server1" | awk '{print $2}')
+    CURRENT_SERVER2=$(echo "$BLOCK" | grep "server2" | awk '{print $2}')
+    CURRENT_FILTER=$(echo "$BLOCK" | grep -E '^[[:space:]]*filter[[:space:]]' | sed 's/^[[:space:]]*filter[[:space:]]*//')
+    CURRENT_DEFAULT=$(echo "$BLOCK" | grep -E '^[[:space:]]*default[[:space:]]' | awk '{print $2}')
+    CURRENT_DEFAULT=${CURRENT_DEFAULT:-false}
+
+    if [[ "$CURRENT_SERVER" == "$DESIRED_SERVER" ]] && \
+       [[ "$CURRENT_SERVER2" == "$DESIRED_SERVER2" ]] && \
+       [[ "$CURRENT_FILTER" == "$DESIRED_FILTER" ]] && \
+       [[ "$CURRENT_DEFAULT" == "$DESIRED_DEFAULT" ]]; then
+        echo "Realm $REALM is already up-to-date and clean. Nothing to do."
+    else
+        echo "Updating realm $REALM for PBS..."
+        /sbin/proxmox-backup-manager ldap update "$REALM" \
+            --filter "$DESIRED_FILTER" \
+            --server1 "$DESIRED_SERVER" \
+            {% if proxmox_ldap_server2 is defined and proxmox_ldap_server2 %}--server2 "$DESIRED_SERVER2"{% endif %} \
+            --default {{ 'true' if (proxmox_ldap_default | default(true) | bool) else 'false' }}
+    fi
+else
+    echo "Creating realm $REALM for PBS..."
+    /sbin/proxmox-backup-manager ldap create "$REALM" \
+        --base-dn "{{ proxmox_ldap_base_dn }}" \
+        --server1 "{{ proxmox_ldap_server1 }}" \
+        {% if proxmox_ldap_server2 is defined and proxmox_ldap_server2 %}--server2 "{{ proxmox_ldap_server2 }}"{% endif %} \
+        --port {{ proxmox_ldap_port }} \
+        --mode {{ proxmox_ldap_mode }} \
+        --bind-dn "{{ proxmox_ldap_bind_dn }}" \
+        {% if proxmox_ldap_bind_password is defined and proxmox_ldap_bind_password %}--password "{{ proxmox_ldap_bind_password }}"{% endif %} \
+        --user-attr {{ proxmox_ldap_user_attr }} \
+        --filter "$DESIRED_FILTER" \
+        --sync-attributes "$DESIRED_SYNC_ATTRS" \
+        --sync-defaults-options "{{ proxmox_ldap_sync_defaults_options }}" \
+        --comment "{{ proxmox_ldap_comment }}" \
+        --default {{ 'true' if (proxmox_ldap_default | default(true) | bool) else 'false' }}
+fi
+
+echo "Syncing realm $REALM on PBS..."
+/sbin/proxmox-backup-manager ldap sync "$REALM" --remove-vanished entry
+
+echo "Configuring ACL for synced users on PBS..."
+for u in $(/sbin/proxmox-backup-manager user list --output-format json 2>/dev/null | grep -oE '[a-zA-Z0-9._-]+@'"$REALM"); do
+    if ! /sbin/proxmox-backup-manager acl list | grep -qE "│ $u +│ / +│ +1 +│ Admin +│"; then
+        /sbin/proxmox-backup-manager acl update / Admin --auth-id "$u"
+    fi
+done
+
+echo "SYNC_COMPLETE"

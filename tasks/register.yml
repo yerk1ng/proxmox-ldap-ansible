@@ -1,0 +1,16 @@
+---
+- name: Deploy LDAP setup script
+  ansible.builtin.template:
+    src: pve_ldap_config.sh.j2
+    dest: /tmp/setup_ldap.sh
+    mode: '0700'
+
+- name: Execute LDAP setup script
+  ansible.builtin.command: /tmp/setup_ldap.sh
+  register: setup_script_result
+  changed_when: "'Applying' in setup_script_result.stdout or 'Updating' in setup_script_result.stdout or 'Creating' in setup_script_result.stdout"
+
+- name: Cleanup setup script
+  ansible.builtin.file:
+    path: /tmp/setup_ldap.sh
+    state: absent
